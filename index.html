@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Station Task Analyzer — Manual Time Study (No AI)</title>
+<style>
+  :root{
+    --ink:#12181f; --steel:#1c2732; --steel-2:#26333f; --line:#33424f;
+    --amber:#e8a33d; --amber-dim:#7a5a26; --green:#4caf7d;
+    --paper:#eef1f3; --paper-dim:#9fb0bd;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+    --sans:'Inter','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font-family:var(--sans);}
+  #app{display:grid;grid-template-columns:440px 1fr;height:100vh;}
+  @media (max-width:960px){#app{grid-template-columns:1fr;grid-template-rows:auto auto;height:auto;}}
+
+  #left{background:var(--steel);border-right:1px solid var(--line);display:flex;flex-direction:column;height:100vh;overflow-y:auto;}
+  @media (max-width:960px){#left{height:auto;}}
+  #brand{padding:18px 20px 14px;border-bottom:1px solid var(--line);}
+  #brand .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--green);text-transform:uppercase;}
+  #brand h1{margin:6px 0 2px;font-size:19px;font-weight:700;letter-spacing:-.01em;}
+  #brand p{margin:0;font-size:12.5px;color:var(--paper-dim);}
+
+  #setup{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:10.5px;color:var(--paper-dim);text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);}
+  .field input, .field select{
+    background:var(--ink);border:1px solid var(--line);color:var(--paper);
+    padding:7px 9px;border-radius:6px;font-size:13px;font-family:var(--sans);
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--amber);}
+
+  #uploadzone{margin:14px 20px;border:1.5px dashed var(--line);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:border-color .15s;}
+  #uploadzone:hover, #uploadzone.drag{border-color:var(--amber);}
+  #uploadzone .icon{font-size:20px;margin-bottom:4px;}
+  #uploadzone .txt{font-size:12.5px;color:var(--paper-dim);}
+  #uploadzone .sub{font-size:11px;color:#5a6b78;margin-top:2px;}
+  input[type=file]{display:none;}
+
+  #videoPreviewWrap{margin:0 20px 10px;display:none;}
+  #videoPreviewWrap video{width:100%;border-radius:8px;border:1px solid var(--line);display:block;background:#000;}
+
+  #transportBar{margin:0 20px 10px;display:none;flex-direction:column;gap:8px;}
+  #scrub{width:100%;}
+  #timeReadout{font-family:var(--mono);font-size:12.5px;color:var(--paper-dim);display:flex;justify-content:space-between;}
+  #controlsRow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .ctrlBtn{
+    background:var(--steel-2);border:1px solid var(--line);color:var(--paper);
+    padding:6px 10px;border-radius:6px;font-size:12.5px;cursor:pointer;font-family:var(--mono);
+  }
+  .ctrlBtn:hover{border-color:var(--amber);}
+  #rateSelect{background:var(--ink);border:1px solid var(--line);color:var(--paper);border-radius:6px;padding:6px 8px;font-size:12.5px;font-family:var(--mono);}
+  .kbd{font-family:var(--mono);font-size:10px;color:#5a6b78;border:1px solid var(--line);border-radius:3px;padding:0 4px;margin-left:4px;}
+
+  #taskQueueWrap{margin:0 20px 16px;flex:1;display:none;flex-direction:column;gap:8px;}
+  #addTaskRow{display:flex;gap:6px;}
+  #newTaskName{flex:1;}
+  #addTaskBtn{
+    background:var(--steel-2);border:1px solid var(--line);color:var(--paper);
+    padding:0 12px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;
+  }
+  #taskQueue{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;}
+  .qitem{
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;
+    display:flex;flex-direction:column;gap:6px;background:var(--ink);
+  }
+  .qitem.active{border-color:var(--amber);background:rgba(232,163,61,.06);}
+  .qitem.done{border-color:#2c5940;}
+  .qitem .qname{display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  .qitem .qname input{background:transparent;border:none;color:var(--paper);font-size:13px;font-weight:600;flex:1;padding:2px 4px;border-radius:4px;}
+  .qitem .qname input:focus{outline:none;background:var(--steel-2);}
+  .qitem .qtimes{font-family:var(--mono);font-size:11.5px;color:var(--paper-dim);}
+  .qitem .qbtns{display:flex;gap:6px;}
+  .qbtn{
+    flex:1;text-align:center;padding:5px 0;border-radius:5px;font-size:11.5px;font-weight:700;
+    cursor:pointer;border:1px solid var(--line);background:var(--steel-2);color:var(--paper);
+  }
+  .qbtn.start{border-color:var(--amber-dim);color:var(--amber);}
+  .qbtn.end{border-color:#2c5940;color:var(--green);}
+  .qbtn.remove{flex:0 0 28px;color:#5a6b78;}
+  .qbtn:hover{filter:brightness(1.2);}
+  .qbtn:disabled{opacity:.35;cursor:not-allowed;}
+
+  #hintBox{margin:0 20px 18px;font-size:11px;color:#5a6b78;line-height:1.6;}
+  #hintBox b{color:var(--paper-dim);}
+
+  /* RIGHT: table column (shared with other versions) */
+  #right{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+  @media (max-width:960px){#right{height:auto;}}
+  #tableHeader{padding:18px 24px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  #tableHeader h2{margin:0;font-size:16px;font-weight:700;}
+  #tableHeader .count{font-family:var(--mono);font-size:12px;color:var(--paper-dim);}
+  .btn{
+    background:var(--steel-2);border:1px solid var(--line);color:var(--paper);
+    padding:7px 12px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:var(--sans);font-weight:600;
+  }
+  .btn:hover{border-color:var(--amber);}
+  .btn.primary{background:var(--green);border-color:var(--green);color:#0d2016;}
+  #headerBtns{display:flex;gap:8px;}
+  #tableWrap{flex:1;overflow:auto;padding:0 24px 24px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    position:sticky;top:0;background:var(--ink);text-align:left;padding:9px 10px;
+    font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--paper-dim);border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  tbody td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr:hover{background:rgba(255,255,255,0.02);}
+  td input{
+    width:100%;background:transparent;border:1px solid transparent;color:var(--paper);
+    padding:5px 6px;border-radius:5px;font-size:13px;font-family:var(--sans);
+  }
+  td input:hover{border-color:var(--line);}
+  td input:focus{outline:none;border-color:var(--amber);background:var(--steel-2);}
+  td.num input{text-align:right;font-family:var(--mono);}
+  .badge{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;}
+  .badge.manual{background:rgba(76,175,125,.15);color:var(--green);border:1px solid #2c5940;}
+  .rowbtn{background:none;border:none;color:#5a6b78;cursor:pointer;font-size:15px;padding:2px 6px;}
+  .rowbtn:hover{color:#e0665a;}
+  .jumpbtn{background:none;border:none;color:var(--amber);cursor:pointer;font-size:13px;padding:2px 6px;}
+  .jumpbtn:hover{text-decoration:underline;}
+  #emptyState{padding:60px 20px;text-align:center;color:var(--paper-dim);}
+  #emptyState .big{font-size:15px;margin-bottom:6px;color:var(--paper);}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="left">
+    <div id="brand">
+      <div class="eyebrow">DSM · No-AI Version</div>
+      <h1>Station Task Analyzer</h1>
+      <p>You watch, you mark — nothing leaves this browser. No API, no vendor, no data leak risk.</p>
+    </div>
+
+    <div id="setup">
+      <div class="field-row">
+        <div class="field"><label>Factory</label><input id="f_factory" placeholder="e.g. Delta TH"></div>
+        <div class="field"><label>Plant</label><input id="f_plant" placeholder="Bangpoo / Wellgrow"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Line</label><input id="f_line" placeholder="e.g. CD7"></div>
+        <div class="field"><label>Model</label><input id="f_model" placeholder="e.g. PSU-450"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Station</label><input id="f_station" placeholder="e.g. ST-04 Insertion"></div>
+        <div class="field"><label>Cycle #</label><input id="f_cycle" type="number" min="1" value="1"></div>
+      </div>
+    </div>
+
+    <div id="uploadzone">
+      <div class="icon">📹</div>
+      <div class="txt">Click or drop a station video</div>
+      <div class="sub">Stays local in your browser — never uploaded anywhere</div>
+    </div>
+    <input type="file" id="videoInput" accept="video/*">
+
+    <div id="videoPreviewWrap">
+      <video id="videoPreview" muted></video>
+    </div>
+
+    <div id="transportBar">
+      <input type="range" id="scrub" min="0" max="1000" value="0" step="1">
+      <div id="timeReadout"><span id="curTime">0.00s</span><span id="durTime">0.00s</span></div>
+      <div id="controlsRow">
+        <button class="ctrlBtn" id="playBtn">▶ Play <span class="kbd">Space</span></button>
+        <button class="ctrlBtn" id="backBtn">« -0.1s <span class="kbd">[</span></button>
+        <button class="ctrlBtn" id="fwdBtn">+0.1s » <span class="kbd">]</span></button>
+        <select id="rateSelect">
+          <option value="0.1">0.1×</option>
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="taskQueueWrap">
+      <div id="addTaskRow">
+        <input id="newTaskName" class="field" placeholder="Add task name (from SOP)…" style="background:var(--ink);border:1px solid var(--line);color:var(--paper);padding:7px 9px;border-radius:6px;font-size:13px;">
+        <button id="addTaskBtn">+ Add</button>
+      </div>
+      <div id="taskQueue"></div>
+    </div>
+
+    <div id="hintBox">
+      <b>Workflow:</b> add your station's task list once (from the SOP), then step through the video — click <b>Mark Start</b> when a task begins, scrub/step forward, click <b>Mark End</b> when it finishes. It auto-advances to the next task. Use <span class="kbd">[</span> / <span class="kbd">]</span> to nudge 0.1s at a time, and slow the playback rate down to 0.1–0.25× for fast motions.
+    </div>
+  </div>
+
+  <div id="right">
+    <div id="tableHeader">
+      <div>
+        <h2>Process Breakdown Table</h2>
+        <span class="count" id="rowCount">0 tasks logged</span>
+      </div>
+      <div id="headerBtns">
+        <button class="btn" id="addRowBtn">+ Add task row</button>
+        <button class="btn" id="summaryBtn">Time Study Summary</button>
+        <button class="btn primary" id="exportBtn">Export CSV</button>
+      </div>
+    </div>
+    <div id="tableWrap">
+      <table id="taskTable">
+        <thead>
+          <tr>
+            <th>Factory</th><th>Plant</th><th>Line</th><th>Model</th><th>Station</th><th>Cyc#</th>
+            <th>#</th><th style="min-width:180px">Task</th>
+            <th>Start(s)</th><th>End(s)</th><th>Dur(s)</th><th>Source</th><th></th><th></th>
+          </tr>
+        </thead>
+        <tbody id="taskBody"></tbody>
+      </table>
+      <div id="emptyState">
+        <div class="big">No tasks yet</div>
+        <div>Upload a video and use the task queue to mark timings, or click "+ Add task row" to enter times manually.</div>
+      </div>
+    </div>
+
+    <div id="summaryPanel" style="display:none;border-top:1px solid var(--line);padding:18px 24px;background:var(--steel);max-height:46vh;overflow:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin:0;font-size:15px;">Formal Time Study Summary</h2>
+        <div style="display:flex;gap:14px;align-items:center;">
+          <div class="field" style="width:110px;"><label>Rating %</label><input id="ratingInput" type="number" value="100" min="1"></div>
+          <div class="field" style="width:110px;"><label>Allowance %</label><input id="allowanceInput" type="number" value="10" min="0"></div>
+          <button class="btn" id="recalcSummaryBtn">Recalculate</button>
+        </div>
+      </div>
+      <p style="font-size:11.5px;color:var(--paper-dim);max-width:760px;line-height:1.5;margin:0 0 12px;">
+        Groups task rows by Station + Task name across all logged cycles. Standard Time = Average Observed Time × Rating% × (1 + Allowance%).
+      </p>
+      <div id="summaryTableWrap"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let rows = [];
+let rowIdCounter = 1;
+let taskQueue = []; // {id, name, start, end}
+let taskQueueIdCounter = 1;
+let activeQueueId = null;
+
+// ---- persistence ----
+(async () => {
+  try{
+    const res = await window.storage.get('master_task_table_manual', false);
+    if(res && res.value){
+      rows = JSON.parse(res.value);
+      rowIdCounter = rows.reduce((m,r)=>Math.max(m,r.id),0)+1;
+      renderTable();
+    }
+  }catch(e){}
+})();
+async function saveRows(){
+  try{ await window.storage.set('master_task_table_manual', JSON.stringify(rows), false); }
+  catch(e){ console.error('save failed', e); }
+}
+
+// ---- video upload & transport ----
+const uploadzone = document.getElementById('uploadzone');
+const videoInput = document.getElementById('videoInput');
+const videoPreviewWrap = document.getElementById('videoPreviewWrap');
+const videoPreview = document.getElementById('videoPreview');
+const transportBar = document.getElementById('transportBar');
+const taskQueueWrap = document.getElementById('taskQueueWrap');
+const scrub = document.getElementById('scrub');
+const curTimeEl = document.getElementById('curTime');
+const durTimeEl = document.getElementById('durTime');
+const playBtn = document.getElementById('playBtn');
+const rateSelect = document.getElementById('rateSelect');
+
+uploadzone.addEventListener('click', ()=>videoInput.click());
+uploadzone.addEventListener('dragover', e=>{e.preventDefault(); uploadzone.classList.add('drag');});
+uploadzone.addEventListener('dragleave', ()=>uploadzone.classList.remove('drag'));
+uploadzone.addEventListener('drop', e=>{
+  e.preventDefault(); uploadzone.classList.remove('drag');
+  if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+videoInput.addEventListener('change', e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file){
+  const url = URL.createObjectURL(file);
+  videoPreview.src = url;
+  videoPreviewWrap.style.display = 'block';
+  transportBar.style.display = 'flex';
+  taskQueueWrap.style.display = 'flex';
+  videoPreview.addEventListener('loadedmetadata', ()=>{
+    durTimeEl.textContent = videoPreview.duration.toFixed(2)+'s';
+    scrub.max = Math.round(videoPreview.duration*1000);
+  }, {once:true});
+}
+
+videoPreview.addEventListener('timeupdate', ()=>{
+  curTimeEl.textContent = videoPreview.currentTime.toFixed(2)+'s';
+  scrub.value = Math.round(videoPreview.currentTime*1000);
+});
+scrub.addEventListener('input', ()=>{ videoPreview.currentTime = scrub.value/1000; });
+playBtn.addEventListener('click', togglePlay);
+function togglePlay(){
+  if(videoPreview.paused){ videoPreview.play(); playBtn.innerHTML = '⏸ Pause <span class="kbd">Space</span>'; }
+  else { videoPreview.pause(); playBtn.innerHTML = '▶ Play <span class="kbd">Space</span>'; }
+}
+videoPreview.addEventListener('pause', ()=>{ playBtn.innerHTML = '▶ Play <span class="kbd">Space</span>'; });
+videoPreview.addEventListener('play', ()=>{ playBtn.innerHTML = '⏸ Pause <span class="kbd">Space</span>'; });
+
+rateSelect.addEventListener('change', ()=>{ videoPreview.playbackRate = parseFloat(rateSelect.value); });
+
+document.getElementById('backBtn').addEventListener('click', ()=>{ videoPreview.currentTime = Math.max(0, videoPreview.currentTime-0.1); });
+document.getElementById('fwdBtn').addEventListener('click', ()=>{ videoPreview.currentTime = Math.min(videoPreview.duration, videoPreview.currentTime+0.1); });
+
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName === 'INPUT') return; // don't hijack typing
+  if(!videoPreview.src) return;
+  if(e.code === 'Space'){ e.preventDefault(); togglePlay(); }
+  if(e.key === '['){ videoPreview.currentTime = Math.max(0, videoPreview.currentTime-0.1); }
+  if(e.key === ']'){ videoPreview.currentTime = Math.min(videoPreview.duration, videoPreview.currentTime+0.1); }
+  if(e.key.toLowerCase() === 's' && activeQueueId) markStart(activeQueueId);
+  if(e.key.toLowerCase() === 'e' && activeQueueId) markEnd(activeQueueId);
+});
+
+// ---- task queue ----
+const newTaskName = document.getElementById('newTaskName');
+document.getElementById('addTaskBtn').addEventListener('click', addTaskFromInput);
+newTaskName.addEventListener('keydown', e=>{ if(e.key==='Enter') addTaskFromInput(); });
+
+function addTaskFromInput(){
+  const name = newTaskName.value.trim();
+  if(!name) return;
+  taskQueue.push({ id: taskQueueIdCounter++, name, start:null, end:null });
+  newTaskName.value = '';
+  if(activeQueueId === null) activeQueueId = taskQueue[0].id;
+  renderQueue();
+}
+
+function renderQueue(){
+  const wrap = document.getElementById('taskQueue');
+  wrap.innerHTML = '';
+  taskQueue.forEach(q=>{
+    const div = document.createElement('div');
+    div.className = 'qitem' + (q.id===activeQueueId?' active':'') + (q.end!==null?' done':'');
+    const nameRow = document.createElement('div'); nameRow.className='qname';
+    const nameInput = document.createElement('input');
+    nameInput.value = q.name;
+    nameInput.addEventListener('change', e=>{ q.name = e.target.value; });
+    nameInput.addEventListener('click', ()=>{ activeQueueId = q.id; renderQueue(); });
+    nameRow.appendChild(nameInput);
+    div.appendChild(nameRow);
+
+    const timesDiv = document.createElement('div'); timesDiv.className='qtimes';
+    timesDiv.textContent = `${q.start!==null?q.start.toFixed(2)+'s':'—'} → ${q.end!==null?q.end.toFixed(2)+'s':'—'}`;
+    div.appendChild(timesDiv);
+
+    const btnRow = document.createElement('div'); btnRow.className='qbtns';
+    const startBtn = document.createElement('button');
+    startBtn.className='qbtn start'; startBtn.textContent='Mark Start';
+    startBtn.addEventListener('click', ()=>{ activeQueueId=q.id; markStart(q.id); });
+    const endBtn = document.createElement('button');
+    endBtn.className='qbtn end'; endBtn.textContent='Mark End';
+    endBtn.disabled = q.start===null;
+    endBtn.addEventListener('click', ()=>{ activeQueueId=q.id; markEnd(q.id); });
+    const rmBtn = document.createElement('button');
+    rmBtn.className='qbtn remove'; rmBtn.textContent='✕';
+    rmBtn.addEventListener('click', ()=>{ taskQueue = taskQueue.filter(x=>x.id!==q.id); renderQueue(); });
+    btnRow.appendChild(startBtn); btnRow.appendChild(endBtn); btnRow.appendChild(rmBtn);
+    div.appendChild(btnRow);
+
+    wrap.appendChild(div);
+  });
+}
+
+function markStart(id){
+  const q = taskQueue.find(x=>x.id===id);
+  if(!q || !videoPreview.src) return;
+  q.start = videoPreview.currentTime;
+  renderQueue();
+}
+function markEnd(id){
+  const q = taskQueue.find(x=>x.id===id);
+  if(!q || q.start===null || !videoPreview.src) return;
+  q.end = videoPreview.currentTime;
+  // push to master table
+  addRowFromQueueItem(q);
+  renderQueue();
+  // advance to next not-done task
+  const idx = taskQueue.findIndex(x=>x.id===id);
+  const next = taskQueue.slice(idx+1).find(x=>x.end===null);
+  activeQueueId = next ? next.id : (taskQueue.find(x=>x.end===null)?.id ?? null);
+  renderQueue();
+}
+
+function addRowFromQueueItem(q){
+  rows.push({
+    id: rowIdCounter++,
+    factory: document.getElementById('f_factory').value || '',
+    plant: document.getElementById('f_plant').value || '',
+    line: document.getElementById('f_line').value || '',
+    model: document.getElementById('f_model').value || '',
+    station: document.getElementById('f_station').value || '',
+    cycle: parseInt(document.getElementById('f_cycle').value) || 1,
+    order: rows.length+1,
+    name: q.name,
+    start: q.start,
+    end: q.end,
+    source: 'manual-video'
+  });
+  renderTable(); saveRows();
+}
+
+// ---- table rendering ----
+const taskBody = document.getElementById('taskBody');
+const emptyState = document.getElementById('emptyState');
+const rowCountEl = document.getElementById('rowCount');
+
+function cell(value, onChange, opts={}){
+  const td = document.createElement('td');
+  if(opts.num) td.className='num';
+  const input = document.createElement('input');
+  input.value = value ?? '';
+  input.type = opts.num ? 'number' : 'text';
+  if(opts.num) input.step='any';
+  input.addEventListener('change', e=>onChange(e.target.value));
+  td.appendChild(input);
+  return td;
+}
+
+function renderTable(){
+  taskBody.innerHTML = '';
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.appendChild(cell(r.factory, v=>{r.factory=v; saveRows();}));
+    tr.appendChild(cell(r.plant, v=>{r.plant=v; saveRows();}));
+    tr.appendChild(cell(r.line, v=>{r.line=v; saveRows();}));
+    tr.appendChild(cell(r.model, v=>{r.model=v; saveRows();}));
+    tr.appendChild(cell(r.station, v=>{r.station=v; saveRows();}));
+    tr.appendChild(cell(r.cycle ?? 1, v=>{r.cycle=v; saveRows();}, {num:true}));
+    tr.appendChild(cell(r.order, v=>{r.order=v; saveRows();}, {num:true}));
+    tr.appendChild(cell(r.name, v=>{r.name=v; saveRows();}));
+    tr.appendChild(cell(r.start, v=>{r.start=v; renderTable(); saveRows();}, {num:true}));
+    tr.appendChild(cell(r.end, v=>{r.end=v; renderTable(); saveRows();}, {num:true}));
+
+    const durTd = document.createElement('td'); durTd.className='num';
+    durTd.textContent = durationOf(r);
+    durTd.style.color='var(--paper-dim)'; durTd.style.fontFamily='var(--mono)';
+    tr.appendChild(durTd);
+
+    const srcTd = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'badge manual';
+    badge.textContent = 'Manual';
+    srcTd.appendChild(badge);
+    tr.appendChild(srcTd);
+
+    const jumpTd = document.createElement('td');
+    if(videoPreview.src && r.start !== '' && r.start !== null && isFinite(parseFloat(r.start))){
+      const jumpBtn = document.createElement('button');
+      jumpBtn.className = 'jumpbtn';
+      jumpBtn.textContent = '⏵ Jump';
+      jumpBtn.title = 'Seek video to this task\'s start time';
+      jumpBtn.addEventListener('click', ()=>{ videoPreview.currentTime = parseFloat(r.start); videoPreview.scrollIntoView({behavior:'smooth', block:'center'}); });
+      jumpTd.appendChild(jumpBtn);
+    }
+    tr.appendChild(jumpTd);
+
+    const delTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.className='rowbtn'; delBtn.textContent='✕'; delBtn.title='Delete row';
+    delBtn.addEventListener('click', ()=>{ rows = rows.filter(x=>x.id!==r.id); renderTable(); saveRows(); });
+    delTd.appendChild(delBtn);
+    tr.appendChild(delTd);
+
+    taskBody.appendChild(tr);
+  });
+  rowCountEl.textContent = `${rows.length} task${rows.length===1?'':'s'} logged`;
+  emptyState.style.display = rows.length ? 'none' : 'block';
+}
+
+function durationOf(r){
+  const s = parseFloat(r.start), e = parseFloat(r.end);
+  if(isFinite(s) && isFinite(e) && e>=s) return (e-s).toFixed(2);
+  return '—';
+}
+
+document.getElementById('addRowBtn').addEventListener('click', ()=>{
+  rows.push({
+    id: rowIdCounter++,
+    factory: document.getElementById('f_factory').value || '',
+    plant: document.getElementById('f_plant').value || '',
+    line: document.getElementById('f_line').value || '',
+    model: document.getElementById('f_model').value || '',
+    station: document.getElementById('f_station').value || '',
+    cycle: parseInt(document.getElementById('f_cycle').value) || 1,
+    order: rows.length+1, name:'', start:'', end:'', source:'manual'
+  });
+  renderTable(); saveRows();
+});
+
+// ---- formal time study summary ----
+const summaryPanel = document.getElementById('summaryPanel');
+document.getElementById('summaryBtn').addEventListener('click', ()=>{
+  summaryPanel.style.display = summaryPanel.style.display==='none' ? 'block' : 'none';
+  if(summaryPanel.style.display==='block') renderSummary();
+});
+document.getElementById('recalcSummaryBtn').addEventListener('click', renderSummary);
+
+function niebelSampleSize(times){
+  const n = times.length;
+  if(n<2) return null;
+  const sum = times.reduce((a,b)=>a+b,0);
+  const sumSq = times.reduce((a,b)=>a+b*b,0);
+  const inner = n*sumSq - sum*sum;
+  if(inner<=0) return n;
+  return Math.ceil(Math.pow((40*Math.sqrt(inner))/sum, 2));
+}
+
+function renderSummary(){
+  const rating = (parseFloat(document.getElementById('ratingInput').value)||100)/100;
+  const allowance = (parseFloat(document.getElementById('allowanceInput').value)||0)/100;
+  const groups = {};
+  rows.forEach(r=>{
+    const s=parseFloat(r.start), e=parseFloat(r.end);
+    if(!isFinite(s)||!isFinite(e)||e<s) return;
+    const key = `${r.station}||${(r.name||'').trim().toLowerCase()}`;
+    if(!groups[key]) groups[key] = { station:r.station, name:r.name, times:[] };
+    groups[key].times.push(e-s);
+  });
+  const wrap = document.getElementById('summaryTableWrap');
+  const keys = Object.keys(groups);
+  if(!keys.length){
+    wrap.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">No timed tasks yet.</p>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Station</th><th style="min-width:160px">Task</th><th># Obs</th>'+
+    '<th>Avg (s)</th><th>Std Dev</th><th>Min</th><th>Max</th><th>Suggested N (95%/±5%)</th>'+
+    '<th>Normal Time (s)</th><th>Standard Time (s)</th></tr></thead><tbody>';
+  keys.forEach(k=>{
+    const g = groups[k];
+    const n = g.times.length;
+    const avg = g.times.reduce((a,b)=>a+b,0)/n;
+    const variance = n>1 ? g.times.reduce((a,b)=>a+(b-avg)*(b-avg),0)/(n-1) : 0;
+    const std = Math.sqrt(variance);
+    const min = Math.min(...g.times), max = Math.max(...g.times);
+    const suggestedN = niebelSampleSize(g.times);
+    const normalTime = avg*rating;
+    const standardTime = normalTime*(1+allowance);
+    const insufficient = suggestedN!==null && suggestedN>n;
+    html += `<tr>
+      <td style="padding:6px 10px;">${g.station||''}</td>
+      <td style="padding:6px 10px;">${g.name||''}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);">${n}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);">${avg.toFixed(2)}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);">${std.toFixed(2)}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);">${min.toFixed(2)}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);">${max.toFixed(2)}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);${insufficient?'color:#e0665a;font-weight:700;':''}">${suggestedN===null?'need ≥2 cycles':suggestedN}${insufficient?' ⚠':''}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);">${normalTime.toFixed(2)}</td>
+      <td style="padding:6px 10px;font-family:var(--mono);font-weight:700;color:var(--green);">${standardTime.toFixed(2)}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  html += '<p style="font-size:11px;color:#5a6b78;margin-top:10px;">⚠ = fewer cycles observed than the 95% confidence / ±5% precision formula recommends — treat Standard Time as provisional.</p>';
+  wrap.innerHTML = html;
+}
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const headers = ['Factory','Plant','Line','Model','Station','Cycle','#','Task','Start(s)','End(s)','Duration(s)','Source'];
+  const lines = [headers.join(',')];
+  rows.forEach(r=>{
+    const vals = [r.factory,r.plant,r.line,r.model,r.station,r.cycle,r.order,r.name,r.start,r.end,durationOf(r),r.source]
+      .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
+    lines.push(vals.join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'station_task_breakdown_manual.csv';
+  a.click();
+});
+
+renderTable();
+</script>
+</body>
+</html>
