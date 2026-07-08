@@ -281,7 +281,7 @@
         </div>
       </div>
       <p style="font-size:11.5px;color:var(--paper-dim);max-width:820px;line-height:1.5;margin:0 0 12px;">
-        Pick which stations to include (averaged across whatever cycles you've logged for each), set your target OI Cycle Time, then generate. Metrics below use standard line-balancing formulas — treat as a starting point and cross-check against Delta's official calculation before using it formally.
+        Pick which tasks to include, grouped by station below. Same task name logged more than once in a station (repeat cycles, or repeated within one cycle) is automatically averaged into a single representative time before it's added to that station's bar. Set your target OI Cycle Time, then generate. Metrics use standard line-balancing formulas — treat as a starting point and cross-check against Delta's official calculation before using it formally.
       </p>
       <div id="lbStationPicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
       <div id="lbOutput"></div>
@@ -797,55 +797,102 @@ document.getElementById('lbGraphBtn').addEventListener('click', ()=>{
 });
 
 function renderStationPicker(){
-  const stations = [...new Set(rows.map(r=>r.station).filter(Boolean))];
   const wrap = document.getElementById('lbStationPicker');
   wrap.innerHTML = '';
-  if(!stations.length){
-    wrap.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">No stations logged yet.</p>';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '14px';
+
+  // group tasks by station, dedupe by task name (case-insensitive)
+  const byStation = {};
+  const stationOrder = [];
+  rows.forEach(r=>{
+    if(!r.station) return;
+    if(!byStation[r.station]){ byStation[r.station] = {}; stationOrder.push(r.station); }
+    const tkey = (r.name||'').trim().toLowerCase() || `(unnamed #${r.order})`;
+    if(!byStation[r.station][tkey]) byStation[r.station][tkey] = { display: r.name || `(unnamed #${r.order})`, category: r.category };
+  });
+
+  if(!stationOrder.length){
+    wrap.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">No tasks logged yet.</p>';
     return;
   }
-  stations.forEach(st=>{
-    const label = document.createElement('label');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.value = st; cb.checked = true; cb.dataset.station = st;
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(st));
-    wrap.appendChild(label);
+
+  stationOrder.forEach(st=>{
+    const group = document.createElement('div');
+    const title = document.createElement('div');
+    title.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--paper-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;font-weight:700;';
+    title.textContent = st;
+    group.appendChild(title);
+
+    const chips = document.createElement('div');
+    chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+    Object.keys(byStation[st]).forEach(tkey=>{
+      const t = byStation[st][tkey];
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = true;
+      cb.dataset.station = st; cb.dataset.taskkey = tkey;
+      label.appendChild(cb);
+      const ci = catInfo(t.category);
+      const swatch = document.createElement('span');
+      swatch.style.cssText = `display:inline-block;width:8px;height:8px;border-radius:2px;background:${ci.color};margin:0 2px;`;
+      label.appendChild(swatch);
+      label.appendChild(document.createTextNode(t.display));
+      chips.appendChild(label);
+    });
+    group.appendChild(chips);
+    wrap.appendChild(group);
   });
 }
 
 document.getElementById('renderLbBtn').addEventListener('click', generateLineBalanceGraph);
 
 function generateLineBalanceGraph(){
-  const checked = Array.from(document.querySelectorAll('#lbStationPicker input[type=checkbox]:checked')).map(cb=>cb.value);
+  const checkedBoxes = Array.from(document.querySelectorAll('#lbStationPicker input[type=checkbox]:checked'));
   const oiCycleTime = parseFloat(document.getElementById('oiCycleTime').value) || 120;
   const out = document.getElementById('lbOutput');
   out.innerHTML = '';
 
-  if(!checked.length){
-    out.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">Select at least one station.</p>';
+  if(!checkedBoxes.length){
+    out.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">Select at least one task.</p>';
     return;
   }
 
-  // For each station: average category totals across all cycles logged for that station
-  const stationData = checked.map(st=>{
+  // included (station, taskkey) pairs
+  const includedKeys = new Set(checkedBoxes.map(cb=>`${cb.dataset.station}|||${cb.dataset.taskkey}`));
+  const stations = [...new Set(checkedBoxes.map(cb=>cb.dataset.station))];
+
+  // For each station: for each distinct included task name, average its duration across
+  // every instance found (any cycle, any repeat within a cycle) — that average represents
+  // the task's typical time and is what feeds the station's stacked bar.
+  const stationData = stations.map(st=>{
     const stRows = rows.filter(r=>r.station===st);
-    const cycles = [...new Set(stRows.map(r=>r.cycle||1))];
+    const byTask = {};
+    stRows.forEach(r=>{
+      const tkey = (r.name||'').trim().toLowerCase() || `(unnamed #${r.order})`;
+      if(!includedKeys.has(`${st}|||${tkey}`)) return;
+      const s=parseFloat(r.start), e=parseFloat(r.end);
+      if(!isFinite(s)||!isFinite(e)||e<s) return;
+      if(!byTask[tkey]) byTask[tkey] = { durations:[], category:r.category||'manpower' };
+      byTask[tkey].durations.push(e-s);
+    });
+
     const catTotals = {};
     CATEGORIES.forEach(c=>catTotals[c.key]=0);
-    cycles.forEach(cyc=>{
-      const cycRows = stRows.filter(r=>(r.cycle||1)===cyc);
-      const cycCatSums = {};
-      CATEGORIES.forEach(c=>cycCatSums[c.key]=0);
-      cycRows.forEach(r=>{
-        const s=parseFloat(r.start), e=parseFloat(r.end);
-        if(isFinite(s)&&isFinite(e)&&e>=s){ cycCatSums[r.category||'manpower'] += (e-s); }
-      });
-      CATEGORIES.forEach(c=>{ catTotals[c.key] += cycCatSums[c.key]/cycles.length; });
+    let taskCount = 0;
+    Object.values(byTask).forEach(t=>{
+      const avg = t.durations.reduce((a,b)=>a+b,0)/t.durations.length;
+      catTotals[t.category] += avg;
+      taskCount++;
     });
     const total = CATEGORIES.reduce((a,c)=>a+catTotals[c.key],0);
-    return { station: st, catTotals, total, cycleCount: cycles.length };
-  });
+    return { station: st, catTotals, total, taskCount };
+  }).filter(s=>s.taskCount>0);
+
+  if(!stationData.length){
+    out.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">No timed tasks among the current selection.</p>';
+    return;
+  }
 
   // metrics
   const N = stationData.length;
