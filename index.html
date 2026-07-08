@@ -5,9 +5,9 @@
 <title>Station Task Analyzer — Manual Time Study (No AI)</title>
 <style>
   :root{
-    --ink:#12181f; --steel:#1c2732; --steel-2:#26333f; --line:#33424f;
-    --amber:#e8a33d; --amber-dim:#7a5a26; --green:#4caf7d;
-    --paper:#eef1f3; --paper-dim:#9fb0bd;
+    --ink:#ffffff; --steel:#f4f7fb; --steel-2:#eaf1fb; --line:#c7d7ee;
+    --amber:#1d63ed; --amber-dim:#a9c8fb; --green:#1f9d55;
+    --paper:#142335; --paper-dim:#5d7290;
     --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
     --sans:'Inter','Segoe UI',system-ui,sans-serif;
   }
@@ -67,7 +67,7 @@
     border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;
     display:flex;flex-direction:column;gap:6px;background:var(--ink);
   }
-  .qitem.active{border-color:var(--amber);background:rgba(232,163,61,.06);}
+  .qitem.active{border-color:var(--amber);background:rgba(29,99,237,.06);}
   .qitem.done{border-color:#2c5940;}
   .qitem .qname{display:flex;justify-content:space-between;align-items:center;gap:6px;}
   .qitem .qname input{background:transparent;border:none;color:var(--paper);font-size:13px;font-weight:600;flex:1;padding:2px 4px;border-radius:4px;}
@@ -108,7 +108,7 @@
     color:var(--paper-dim);border-bottom:1px solid var(--line);white-space:nowrap;
   }
   tbody td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
-  tbody tr:hover{background:rgba(255,255,255,0.02);}
+  tbody tr:hover{background:rgba(29,99,237,0.035);}
   td input{
     width:100%;background:transparent;border:1px solid transparent;color:var(--paper);
     padding:5px 6px;border-radius:5px;font-size:13px;font-family:var(--sans);
@@ -124,9 +124,55 @@
   .jumpbtn:hover{text-decoration:underline;}
   #emptyState{padding:60px 20px;text-align:center;color:var(--paper-dim);}
   #emptyState .big{font-size:15px;margin-bottom:6px;color:var(--paper);}
+
+  .stationCard{border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden;background:var(--steel);}
+  .stationCard .cardHead{
+    background:var(--steel-2);padding:10px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+  }
+  .stationCard .cardHead input{
+    background:transparent;border:1px solid transparent;color:var(--paper);font-weight:700;font-size:13.5px;
+    padding:4px 6px;border-radius:5px;font-family:var(--sans);min-width:60px;
+  }
+  .stationCard .cardHead input:hover{border-color:var(--line);}
+  .stationCard .cardHead input:focus{outline:none;border-color:var(--amber);background:var(--ink);}
+  .stationCard .crumbSep{color:#5a6b78;font-size:12px;}
+  .stationCard .cardHead .taskTotal{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--paper-dim);}
+
+  .cycleBlock{padding:10px 16px;}
+  .cycleBlock + .cycleBlock{border-top:1px dashed var(--line);}
+  .cycleLabel{
+    font-family:var(--mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;
+    margin-bottom:6px;font-weight:700;
+  }
+  .miniTable{width:100%;border-collapse:collapse;font-size:13px;}
+  .miniTable th{
+    text-align:left;padding:5px 8px;font-family:var(--mono);font-size:10px;text-transform:uppercase;
+    color:var(--paper-dim);border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  .miniTable td{padding:4px 8px;border-bottom:1px solid rgba(51,66,79,.5);vertical-align:middle;}
+  .miniTable tr:last-child td{border-bottom:none;}
+  .miniTable td input{
+    width:100%;background:transparent;border:1px solid transparent;color:var(--paper);
+    padding:4px 6px;border-radius:5px;font-size:13px;font-family:var(--sans);
+  }
+  .miniTable td input:hover{border-color:var(--line);}
+  .miniTable td input:focus{outline:none;border-color:var(--amber);background:var(--ink);}
+  .miniTable td.num input{text-align:right;font-family:var(--mono);}
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  .catbadge{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:5px;font-weight:700;white-space:nowrap;color:#fff;}
+  #lbStationPicker label{
+    display:flex;align-items:center;gap:6px;background:var(--steel-2);border:1px solid var(--line);
+    border-radius:7px;padding:6px 10px;font-size:12.5px;cursor:pointer;
+  }
+  #lbSummaryTable td, #lbSummaryTable th{padding:6px 10px;font-size:12.5px;}
+  #lbSummaryTable th{text-align:left;color:var(--paper-dim);font-family:var(--mono);font-size:10.5px;text-transform:uppercase;border-bottom:1px solid var(--line);}
+  #lbSummaryTable td{border-bottom:1px solid var(--line);font-family:var(--mono);}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/patternomaly/1.3.2/patternomaly.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -140,8 +186,19 @@
 
     <div id="setup">
       <div class="field-row">
-        <div class="field"><label>Factory</label><input id="f_factory" placeholder="e.g. Delta TH"></div>
-        <div class="field"><label>Plant</label><input id="f_plant" placeholder="Bangpoo / Wellgrow"></div>
+        <div class="field"><label>Factory</label>
+          <select id="f_factory">
+            <option value="Delta Electronics Thailand">Delta Electronics Thailand</option>
+            <option value="__add__">+ Add new…</option>
+          </select>
+        </div>
+        <div class="field"><label>Plant</label>
+          <select id="f_plant">
+            <option value="Bangpoo">Bangpoo</option>
+            <option value="Wellgrow">Wellgrow</option>
+            <option value="__add__">+ Add new…</option>
+          </select>
+        </div>
       </div>
       <div class="field-row">
         <div class="field"><label>Line</label><input id="f_line" placeholder="e.g. CD7"></div>
@@ -183,6 +240,7 @@
     <div id="taskQueueWrap">
       <div id="addTaskRow">
         <input id="newTaskName" class="field" placeholder="Add task name (from SOP)…" style="background:var(--ink);border:1px solid var(--line);color:var(--paper);padding:7px 9px;border-radius:6px;font-size:13px;">
+        <select id="newTaskCategory" style="background:var(--ink);border:1px solid var(--line);color:var(--paper);padding:7px 6px;border-radius:6px;font-size:12px;"></select>
         <button id="addTaskBtn">+ Add</button>
       </div>
       <div id="taskQueue"></div>
@@ -202,25 +260,33 @@
       <div id="headerBtns">
         <button class="btn" id="addRowBtn">+ Add task row</button>
         <button class="btn" id="summaryBtn">Time Study Summary</button>
+        <button class="btn" id="lbGraphBtn">Line Balance Graph</button>
         <button class="btn primary" id="exportBtn">Export CSV</button>
       </div>
     </div>
     <div id="tableWrap">
-      <table id="taskTable">
-        <thead>
-          <tr>
-            <th>Factory</th><th>Plant</th><th>Line</th><th>Model</th><th>Station</th><th>Cyc#</th>
-            <th>#</th><th style="min-width:180px">Task</th>
-            <th>Start(s)</th><th>End(s)</th><th>Dur(s)</th><th>Source</th><th></th><th></th>
-          </tr>
-        </thead>
-        <tbody id="taskBody"></tbody>
-      </table>
+      <div id="cardsWrap"></div>
       <div id="emptyState">
         <div class="big">No tasks yet</div>
         <div>Upload a video and use the task queue to mark timings, or click "+ Add task row" to enter times manually.</div>
       </div>
     </div>
+
+    <div id="lbPanel" style="display:none;border-top:1px solid var(--line);padding:18px 24px;background:var(--steel);max-height:70vh;overflow:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin:0;font-size:15px;">Line Balance Graph</h2>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+          <div class="field" style="width:150px;"><label>OI Cycle Time (s)</label><input id="oiCycleTime" type="number" value="120" min="1"></div>
+          <button class="btn primary" id="renderLbBtn">Generate Graph</button>
+        </div>
+      </div>
+      <p style="font-size:11.5px;color:var(--paper-dim);max-width:820px;line-height:1.5;margin:0 0 12px;">
+        Pick which stations to include (averaged across whatever cycles you've logged for each), set your target OI Cycle Time, then generate. Metrics below use standard line-balancing formulas — treat as a starting point and cross-check against Delta's official calculation before using it formally.
+      </p>
+      <div id="lbStationPicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+      <div id="lbOutput"></div>
+    </div>
+  </div>
 
     <div id="summaryPanel" style="display:none;border-top:1px solid var(--line);padding:18px 24px;background:var(--steel);max-height:46vh;overflow:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
@@ -241,9 +307,54 @@
 </div>
 
 <script>
+const CATEGORIES = [
+  { key:'manpower',        label:'Manpower',                     color:'#3CB44B', hatch:false },
+  { key:'machine',         label:'Machine Time',                 color:'#4472C4', hatch:false },
+  { key:'manpower_machine',label:'Manpower with Machine',         color:'#4472C4', hatch:true  },
+  { key:'manpower_test',   label:'Manpower with Test',            color:'#3CB44B', hatch:true  },
+  { key:'test',            label:'Test Only',                     color:'#FFD700', hatch:false },
+  { key:'visual',          label:'Visual Inspection',             color:'#F2A93B', hatch:false },
+  { key:'visual_test',     label:'Visual Inspection with Test',   color:'#F2A93B', hatch:true  },
+  { key:'nva',             label:'NVA',                           color:'#BDBDBD', hatch:false },
+];
+function catInfo(key){ return CATEGORIES.find(c=>c.key===key) || CATEGORIES[0]; }
+function catFill(c){
+  if(c.hatch && typeof pattern !== 'undefined'){ return pattern.draw('diagonal', c.color); }
+  return c.color;
+}
+
+// populate the "add task" category select
+(function initCategorySelect(){
+  const sel = document.getElementById('newTaskCategory');
+  CATEGORIES.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c.key; opt.textContent = c.label;
+    sel.appendChild(opt);
+  });
+})();
+
+// Factory / Plant dropdowns — "+ Add new…" prompts for a custom value and adds it as an option
+function wireAddableSelect(id){
+  const sel = document.getElementById(id);
+  sel.addEventListener('change', ()=>{
+    if(sel.value === '__add__'){
+      const custom = prompt('Enter new value:');
+      sel.value = sel.options[0].value; // fallback if cancelled
+      if(custom && custom.trim()){
+        const opt = document.createElement('option');
+        opt.value = custom.trim(); opt.textContent = custom.trim();
+        sel.insertBefore(opt, sel.querySelector('option[value="__add__"]'));
+        sel.value = custom.trim();
+      }
+    }
+  });
+}
+wireAddableSelect('f_factory');
+wireAddableSelect('f_plant');
+
 let rows = [];
 let rowIdCounter = 1;
-let taskQueue = []; // {id, name, start, end}
+let taskQueue = []; // {id, name, category, start, end}
 let taskQueueIdCounter = 1;
 let activeQueueId = null;
 
@@ -333,7 +444,8 @@ newTaskName.addEventListener('keydown', e=>{ if(e.key==='Enter') addTaskFromInpu
 function addTaskFromInput(){
   const name = newTaskName.value.trim();
   if(!name) return;
-  taskQueue.push({ id: taskQueueIdCounter++, name, start:null, end:null });
+  const category = document.getElementById('newTaskCategory').value || 'manpower';
+  taskQueue.push({ id: taskQueueIdCounter++, name, category, start:null, end:null });
   newTaskName.value = '';
   if(activeQueueId === null) activeQueueId = taskQueue[0].id;
   renderQueue();
@@ -352,6 +464,17 @@ function renderQueue(){
     nameInput.addEventListener('click', ()=>{ activeQueueId = q.id; renderQueue(); });
     nameRow.appendChild(nameInput);
     div.appendChild(nameRow);
+
+    const catSel = document.createElement('select');
+    catSel.style.cssText = 'background:var(--ink);border:1px solid var(--line);color:var(--paper);padding:4px 6px;border-radius:5px;font-size:11.5px;';
+    CATEGORIES.forEach(c=>{
+      const opt = document.createElement('option');
+      opt.value = c.key; opt.textContent = c.label;
+      if(c.key === (q.category||'manpower')) opt.selected = true;
+      catSel.appendChild(opt);
+    });
+    catSel.addEventListener('change', e=>{ q.category = e.target.value; });
+    div.appendChild(catSel);
 
     const timesDiv = document.createElement('div'); timesDiv.className='qtimes';
     timesDiv.textContent = `${q.start!==null?q.start.toFixed(2)+'s':'—'} → ${q.end!==null?q.end.toFixed(2)+'s':'—'}`;
@@ -406,6 +529,7 @@ function addRowFromQueueItem(q){
     cycle: parseInt(document.getElementById('f_cycle').value) || 1,
     order: rows.length+1,
     name: q.name,
+    category: q.category || 'manpower',
     start: q.start,
     end: q.end,
     source: 'manual-video'
@@ -413,8 +537,8 @@ function addRowFromQueueItem(q){
   renderTable(); saveRows();
 }
 
-// ---- table rendering ----
-const taskBody = document.getElementById('taskBody');
+// ---- table rendering (grouped cards) ----
+const cardsWrap = document.getElementById('cardsWrap');
 const emptyState = document.getElementById('emptyState');
 const rowCountEl = document.getElementById('rowCount');
 
@@ -430,53 +554,133 @@ function cell(value, onChange, opts={}){
   return td;
 }
 
+function groupKey(r){ return [r.factory,r.plant,r.line,r.model,r.station].join('|||'); }
+
 function renderTable(){
-  taskBody.innerHTML = '';
+  cardsWrap.innerHTML = '';
+
+  const groups = {};
+  const groupOrder = [];
   rows.forEach(r=>{
-    const tr = document.createElement('tr');
-    tr.appendChild(cell(r.factory, v=>{r.factory=v; saveRows();}));
-    tr.appendChild(cell(r.plant, v=>{r.plant=v; saveRows();}));
-    tr.appendChild(cell(r.line, v=>{r.line=v; saveRows();}));
-    tr.appendChild(cell(r.model, v=>{r.model=v; saveRows();}));
-    tr.appendChild(cell(r.station, v=>{r.station=v; saveRows();}));
-    tr.appendChild(cell(r.cycle ?? 1, v=>{r.cycle=v; saveRows();}, {num:true}));
-    tr.appendChild(cell(r.order, v=>{r.order=v; saveRows();}, {num:true}));
-    tr.appendChild(cell(r.name, v=>{r.name=v; saveRows();}));
-    tr.appendChild(cell(r.start, v=>{r.start=v; renderTable(); saveRows();}, {num:true}));
-    tr.appendChild(cell(r.end, v=>{r.end=v; renderTable(); saveRows();}, {num:true}));
-
-    const durTd = document.createElement('td'); durTd.className='num';
-    durTd.textContent = durationOf(r);
-    durTd.style.color='var(--paper-dim)'; durTd.style.fontFamily='var(--mono)';
-    tr.appendChild(durTd);
-
-    const srcTd = document.createElement('td');
-    const badge = document.createElement('span');
-    badge.className = 'badge manual';
-    badge.textContent = 'Manual';
-    srcTd.appendChild(badge);
-    tr.appendChild(srcTd);
-
-    const jumpTd = document.createElement('td');
-    if(videoPreview.src && r.start !== '' && r.start !== null && isFinite(parseFloat(r.start))){
-      const jumpBtn = document.createElement('button');
-      jumpBtn.className = 'jumpbtn';
-      jumpBtn.textContent = '⏵ Jump';
-      jumpBtn.title = 'Seek video to this task\'s start time';
-      jumpBtn.addEventListener('click', ()=>{ videoPreview.currentTime = parseFloat(r.start); videoPreview.scrollIntoView({behavior:'smooth', block:'center'}); });
-      jumpTd.appendChild(jumpBtn);
-    }
-    tr.appendChild(jumpTd);
-
-    const delTd = document.createElement('td');
-    const delBtn = document.createElement('button');
-    delBtn.className='rowbtn'; delBtn.textContent='✕'; delBtn.title='Delete row';
-    delBtn.addEventListener('click', ()=>{ rows = rows.filter(x=>x.id!==r.id); renderTable(); saveRows(); });
-    delTd.appendChild(delBtn);
-    tr.appendChild(delTd);
-
-    taskBody.appendChild(tr);
+    const key = groupKey(r);
+    if(!groups[key]){ groups[key] = { factory:r.factory, plant:r.plant, line:r.line, model:r.model, station:r.station, byCycle:{} }; groupOrder.push(key); }
+    const cyc = r.cycle || 1;
+    if(!groups[key].byCycle[cyc]) groups[key].byCycle[cyc] = [];
+    groups[key].byCycle[cyc].push(r);
   });
+
+  groupOrder.forEach(key=>{
+    const g = groups[key];
+    const card = document.createElement('div');
+    card.className = 'stationCard';
+
+    // header — editable, applies to every row sharing this group key
+    const head = document.createElement('div');
+    head.className = 'cardHead';
+    const fields = [['factory','Factory'],['plant','Plant'],['line','Line'],['model','Model'],['station','Station']];
+    fields.forEach(([prop,ph], i)=>{
+      const inp = document.createElement('input');
+      inp.value = g[prop] || '';
+      inp.placeholder = ph;
+      inp.size = Math.max(4, (g[prop]||ph).length);
+      inp.addEventListener('change', e=>{
+        rows.forEach(r=>{ if(groupKey(r)===key) r[prop] = e.target.value; });
+        renderTable(); saveRows();
+      });
+      head.appendChild(inp);
+      if(i < fields.length-1){ const sep = document.createElement('span'); sep.className='crumbSep'; sep.textContent='›'; head.appendChild(sep); }
+    });
+    const totalCount = Object.values(g.byCycle).reduce((a,arr)=>a+arr.length,0);
+    const totalTag = document.createElement('span');
+    totalTag.className = 'taskTotal';
+    const cycleCount = Object.keys(g.byCycle).length;
+    totalTag.textContent = `${totalCount} task${totalCount===1?'':'s'} · ${cycleCount} cycle${cycleCount===1?'':'s'}`;
+    head.appendChild(totalTag);
+    card.appendChild(head);
+
+    // cycle sub-blocks, sorted ascending
+    const cycleNums = Object.keys(g.byCycle).map(Number).sort((a,b)=>a-b);
+    cycleNums.forEach(cyc=>{
+      const block = document.createElement('div');
+      block.className = 'cycleBlock';
+      const label = document.createElement('div');
+      label.className = 'cycleLabel';
+      label.textContent = `Cycle ${cyc}`;
+      block.appendChild(label);
+
+      const table = document.createElement('table');
+      table.className = 'miniTable';
+      table.innerHTML = `<thead><tr><th>#</th><th style="min-width:180px">Task</th><th style="min-width:150px">Category</th><th>Start(s)</th><th>End(s)</th><th>Dur(s)</th><th>Source</th><th></th><th></th></tr></thead>`;
+      const tbody = document.createElement('tbody');
+
+      g.byCycle[cyc]
+        .sort((a,b)=>(parseFloat(a.order)||0)-(parseFloat(b.order)||0))
+        .forEach(r=>{
+          const tr = document.createElement('tr');
+          tr.appendChild(cell(r.order, v=>{r.order=v; saveRows();}, {num:true}));
+          tr.appendChild(cell(r.name, v=>{r.name=v; saveRows();}));
+
+          const catTd = document.createElement('td');
+          const catSel = document.createElement('select');
+          const ci = catInfo(r.category);
+          catSel.style.cssText = `background:${ci.color};color:#fff;border:none;padding:4px 8px;border-radius:5px;font-size:11.5px;font-weight:700;`;
+          CATEGORIES.forEach(c=>{
+            const opt = document.createElement('option');
+            opt.value = c.key; opt.textContent = c.label;
+            if(c.key === (r.category||'manpower')) opt.selected = true;
+            catSel.appendChild(opt);
+          });
+          catSel.addEventListener('change', e=>{
+            r.category = e.target.value;
+            catSel.style.background = catInfo(r.category).color;
+            saveRows();
+          });
+          catTd.appendChild(catSel);
+          tr.appendChild(catTd);
+
+          tr.appendChild(cell(r.start, v=>{r.start=v; renderTable(); saveRows();}, {num:true}));
+          tr.appendChild(cell(r.end, v=>{r.end=v; renderTable(); saveRows();}, {num:true}));
+
+          const durTd = document.createElement('td'); durTd.className='num';
+          durTd.textContent = durationOf(r);
+          durTd.style.color='var(--paper-dim)'; durTd.style.fontFamily='var(--mono)';
+          tr.appendChild(durTd);
+
+          const srcTd = document.createElement('td');
+          const badge = document.createElement('span');
+          badge.className = 'badge manual';
+          badge.textContent = 'Manual';
+          srcTd.appendChild(badge);
+          tr.appendChild(srcTd);
+
+          const jumpTd = document.createElement('td');
+          if(videoPreview.src && r.start !== '' && r.start !== null && isFinite(parseFloat(r.start))){
+            const jumpBtn = document.createElement('button');
+            jumpBtn.className = 'jumpbtn';
+            jumpBtn.textContent = '⏵';
+            jumpBtn.title = "Seek video to this task's start time";
+            jumpBtn.addEventListener('click', ()=>{ videoPreview.currentTime = parseFloat(r.start); videoPreview.scrollIntoView({behavior:'smooth', block:'center'}); });
+            jumpTd.appendChild(jumpBtn);
+          }
+          tr.appendChild(jumpTd);
+
+          const delTd = document.createElement('td');
+          const delBtn = document.createElement('button');
+          delBtn.className='rowbtn'; delBtn.textContent='✕'; delBtn.title='Delete row';
+          delBtn.addEventListener('click', ()=>{ rows = rows.filter(x=>x.id!==r.id); renderTable(); saveRows(); });
+          delTd.appendChild(delBtn);
+          tr.appendChild(delTd);
+
+          tbody.appendChild(tr);
+        });
+      table.appendChild(tbody);
+      block.appendChild(table);
+      card.appendChild(block);
+    });
+
+    cardsWrap.appendChild(card);
+  });
+
   rowCountEl.textContent = `${rows.length} task${rows.length===1?'':'s'} logged`;
   emptyState.style.display = rows.length ? 'none' : 'block';
 }
@@ -496,7 +700,7 @@ document.getElementById('addRowBtn').addEventListener('click', ()=>{
     model: document.getElementById('f_model').value || '',
     station: document.getElementById('f_station').value || '',
     cycle: parseInt(document.getElementById('f_cycle').value) || 1,
-    order: rows.length+1, name:'', start:'', end:'', source:'manual'
+    order: rows.length+1, name:'', category:'manpower', start:'', end:'', source:'manual'
   });
   renderTable(); saveRows();
 });
@@ -569,10 +773,10 @@ function renderSummary(){
 }
 
 document.getElementById('exportBtn').addEventListener('click', ()=>{
-  const headers = ['Factory','Plant','Line','Model','Station','Cycle','#','Task','Start(s)','End(s)','Duration(s)','Source'];
+  const headers = ['Factory','Plant','Line','Model','Station','Cycle','#','Task','Category','Start(s)','End(s)','Duration(s)','Source'];
   const lines = [headers.join(',')];
   rows.forEach(r=>{
-    const vals = [r.factory,r.plant,r.line,r.model,r.station,r.cycle,r.order,r.name,r.start,r.end,durationOf(r),r.source]
+    const vals = [r.factory,r.plant,r.line,r.model,r.station,r.cycle,r.order,r.name,catInfo(r.category).label,r.start,r.end,durationOf(r),r.source]
       .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
     lines.push(vals.join(','));
   });
@@ -582,6 +786,135 @@ document.getElementById('exportBtn').addEventListener('click', ()=>{
   a.download = 'station_task_breakdown_manual.csv';
   a.click();
 });
+
+// ---- Line Balance Graph ----
+const lbPanel = document.getElementById('lbPanel');
+let lbChart = null;
+
+document.getElementById('lbGraphBtn').addEventListener('click', ()=>{
+  lbPanel.style.display = lbPanel.style.display==='none' ? 'block' : 'none';
+  if(lbPanel.style.display==='block') renderStationPicker();
+});
+
+function renderStationPicker(){
+  const stations = [...new Set(rows.map(r=>r.station).filter(Boolean))];
+  const wrap = document.getElementById('lbStationPicker');
+  wrap.innerHTML = '';
+  if(!stations.length){
+    wrap.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">No stations logged yet.</p>';
+    return;
+  }
+  stations.forEach(st=>{
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = st; cb.checked = true; cb.dataset.station = st;
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(st));
+    wrap.appendChild(label);
+  });
+}
+
+document.getElementById('renderLbBtn').addEventListener('click', generateLineBalanceGraph);
+
+function generateLineBalanceGraph(){
+  const checked = Array.from(document.querySelectorAll('#lbStationPicker input[type=checkbox]:checked')).map(cb=>cb.value);
+  const oiCycleTime = parseFloat(document.getElementById('oiCycleTime').value) || 120;
+  const out = document.getElementById('lbOutput');
+  out.innerHTML = '';
+
+  if(!checked.length){
+    out.innerHTML = '<p style="color:var(--paper-dim);font-size:13px;">Select at least one station.</p>';
+    return;
+  }
+
+  // For each station: average category totals across all cycles logged for that station
+  const stationData = checked.map(st=>{
+    const stRows = rows.filter(r=>r.station===st);
+    const cycles = [...new Set(stRows.map(r=>r.cycle||1))];
+    const catTotals = {};
+    CATEGORIES.forEach(c=>catTotals[c.key]=0);
+    cycles.forEach(cyc=>{
+      const cycRows = stRows.filter(r=>(r.cycle||1)===cyc);
+      const cycCatSums = {};
+      CATEGORIES.forEach(c=>cycCatSums[c.key]=0);
+      cycRows.forEach(r=>{
+        const s=parseFloat(r.start), e=parseFloat(r.end);
+        if(isFinite(s)&&isFinite(e)&&e>=s){ cycCatSums[r.category||'manpower'] += (e-s); }
+      });
+      CATEGORIES.forEach(c=>{ catTotals[c.key] += cycCatSums[c.key]/cycles.length; });
+    });
+    const total = CATEGORIES.reduce((a,c)=>a+catTotals[c.key],0);
+    return { station: st, catTotals, total, cycleCount: cycles.length };
+  });
+
+  // metrics
+  const N = stationData.length;
+  const bottleneck = Math.max(...stationData.map(s=>s.total), 0.0001);
+  const sumTotals = stationData.reduce((a,s)=>a+s.total,0);
+  const lbe = (sumTotals/(N*bottleneck))*100;
+  const lbLoss = 100-lbe;
+
+  const manpowerKeys = ['manpower','manpower_machine','manpower_test'];
+  const machineKeys = ['machine','manpower_machine'];
+  const manpowerStations = stationData.filter(s=>manpowerKeys.some(k=>s.catTotals[k]>0));
+  const machineStations = stationData.filter(s=>machineKeys.some(k=>s.catTotals[k]>0));
+  const sumManpower = stationData.reduce((a,s)=>a+manpowerKeys.reduce((b,k)=>b+s.catTotals[k],0),0);
+  const sumMachine = stationData.reduce((a,s)=>a+machineKeys.reduce((b,k)=>b+s.catTotals[k],0),0);
+  const manpowerSufficiency = manpowerStations.length ? (sumManpower/(manpowerStations.length*bottleneck))*100 : 0;
+  const machineUtilization = machineStations.length ? (sumMachine/(machineStations.length*bottleneck))*100 : 0;
+  const sumNVA = stationData.reduce((a,s)=>a+s.catTotals['nva'],0);
+  const valueAddedPct = sumTotals>0 ? ((sumTotals-sumNVA)/sumTotals)*100 : 0;
+
+  // summary cards
+  const summaryHtml = `
+    <table id="lbSummaryTable" style="border-collapse:collapse;margin-bottom:18px;">
+      <tr><th>Bottleneck</th><td>${bottleneck.toFixed(1)} s</td>
+          <th>OI Cycle Time</th><td>${oiCycleTime.toFixed(1)} s</td></tr>
+      <tr><th>Line Balance Efficiency</th><td style="color:var(--green);font-weight:700;">${lbe.toFixed(2)}%</td>
+          <th>Line Balance Loss</th><td style="color:#e0665a;">${lbLoss.toFixed(2)}%</td></tr>
+      <tr><th>Manpower Sufficiency</th><td>${manpowerSufficiency.toFixed(2)}%</td>
+          <th>Machine Utilization</th><td>${machineUtilization.toFixed(2)}%</td></tr>
+      <tr><th>Value Added</th><td>${valueAddedPct.toFixed(2)}%</td>
+          <th>Stations Included</th><td>${N}</td></tr>
+    </table>
+    <p style="font-size:10.5px;color:#5a6b78;margin:-12px 0 16px;">Standard textbook line-balance formulas (Efficiency = ΣStationTime / (N × Bottleneck)). Verify against Delta's official LBE calculation before formal use.</p>
+    <div style="position:relative;height:380px;"><canvas id="lbCanvas"></canvas></div>
+  `;
+  out.innerHTML = summaryHtml;
+
+  if(lbChart) lbChart.destroy();
+  const ctx = document.getElementById('lbCanvas').getContext('2d');
+  const labels = stationData.map(s=>s.station);
+  const datasets = CATEGORIES.map(c=>({
+    label: c.label,
+    data: stationData.map(s=>+s.catTotals[c.key].toFixed(2)),
+    backgroundColor: catFill(c),
+    stack: 'stack1'
+  }));
+  datasets.push({
+    type: 'line',
+    label: 'OI Cycle Time',
+    data: labels.map(()=>oiCycleTime),
+    borderColor: '#D6006D',
+    borderWidth: 2,
+    pointRadius: 0,
+    fill: false,
+    stack: undefined
+  });
+
+  lbChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, ticks:{ color:'#142335', font:{size:10} } },
+        y: { stacked: true, title:{ display:true, text:'Seconds', color:'#142335' }, ticks:{ color:'#142335' } }
+      },
+      plugins: { legend: { position:'bottom', labels:{ color:'#142335', font:{size:10.5} } } }
+    }
+  });
+}
 
 renderTable();
 </script>
